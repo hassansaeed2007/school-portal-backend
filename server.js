@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express   = require("express");
 const mongoose  = require("mongoose");
-const cors      = require("cors");
 
 const { router: authRoutes, seedAdmin } = require("./routes/auth");
 const adminRoutes   = require("./routes/admin");
@@ -11,15 +10,17 @@ const testRoutes    = require("./routes/test");
 
 const app = express();
 
-app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://school-portal-frontend-pt1lnfqlc.vercel.app",
-    "https://frontend-pi-orpin-56.vercel.app",
-    /\.vercel\.app$/
-  ],
-  credentials: true
-}));
+// Manual CORS - works with Vercel serverless
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PATCH");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  next();
+});
+
 app.use(express.json());
 
 app.use("/api/auth",    authRoutes);
@@ -30,7 +31,7 @@ app.use("/api/tests",   testRoutes);
 
 app.get("/", (req, res) => res.json({ message: "School Portal API is running." }));
 
-// Connect MongoDB once and reuse connection (serverless friendly)
+// MongoDB connection - reused across serverless calls
 let isConnected = false;
 async function connectDB() {
   if (isConnected) return;
@@ -39,7 +40,7 @@ async function connectDB() {
   await seedAdmin();
 }
 
-// For local development
+// Local development
 if (process.env.NODE_ENV !== "production") {
   connectDB().then(() => {
     app.listen(process.env.PORT || 5000, () =>
@@ -48,7 +49,7 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// Vercel serverless handler
+// Vercel serverless export
 module.exports = async (req, res) => {
   await connectDB();
   return app(req, res);
