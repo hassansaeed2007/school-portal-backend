@@ -14,8 +14,9 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://school-portal-frontend.vercel.app",
-    /\.vercel\.app$/  // any vercel subdomain
+    "https://school-portal-frontend-pt1lnfqlc.vercel.app",
+    "https://frontend-pi-orpin-56.vercel.app",
+    /\.vercel\.app$/
   ],
   credentials: true
 }));
@@ -29,13 +30,26 @@ app.use("/api/tests",   testRoutes);
 
 app.get("/", (req, res) => res.json({ message: "School Portal API is running." }));
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(async () => {
-    console.log("MongoDB connected.");
-    await seedAdmin(); // create default admin if not exists
+// Connect MongoDB once and reuse connection (serverless friendly)
+let isConnected = false;
+async function connectDB() {
+  if (isConnected) return;
+  await mongoose.connect(process.env.MONGO_URI);
+  isConnected = true;
+  await seedAdmin();
+}
+
+// For local development
+if (process.env.NODE_ENV !== "production") {
+  connectDB().then(() => {
     app.listen(process.env.PORT || 5000, () =>
       console.log(`Server running on http://localhost:${process.env.PORT || 5000}`)
     );
-  })
-  .catch((err) => console.error("MongoDB connection failed:", err.message));
+  });
+}
+
+// Vercel serverless handler
+module.exports = async (req, res) => {
+  await connectDB();
+  return app(req, res);
+};
